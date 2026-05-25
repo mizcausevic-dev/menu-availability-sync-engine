@@ -28,7 +28,30 @@ jobs:
           cache: npm
       - run: npm install
       - run: npm run prerender
+      - name: SEO assets (robots.txt + sitemap.xml)
+        run: |
+          DOMAIN=$(cat CNAME 2>/dev/null | tr -d '[:space:]')
+          if [ -n "$DOMAIN" ]; then
+            printf 'User-agent: *\nAllow: /\nSitemap: https://%s/sitemap.xml\n' "$DOMAIN" > site/robots.txt
+            TODAY=$(date -u +%Y-%m-%d)
+            {
+              echo '<?xml version="1.0" encoding="UTF-8"?>'
+              echo '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+              for f in site/*.html; do
+                n=$(basename "$f")
+                if [ "$n" = "index.html" ]; then loc="https://$DOMAIN/"; else loc="https://$DOMAIN/$n"; fi
+                echo "  <url><loc>$loc</loc><lastmod>$TODAY</lastmod></url>"
+              done
+              echo '</urlset>'
+            } > site/sitemap.xml
+            echo "wrote site/robots.txt + site/sitemap.xml for $DOMAIN"
+            node scripts/seo-meta.mjs "$DOMAIN"
+          else
+            echo "no CNAME -> skipping SEO assets"
+          fi
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
